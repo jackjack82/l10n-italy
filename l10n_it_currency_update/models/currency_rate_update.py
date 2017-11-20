@@ -4,6 +4,7 @@
 
 import logging
 from datetime import datetime, time, timedelta
+from dateutil.relativedelta import relativedelta
 
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
@@ -12,6 +13,12 @@ from odoo.addons.currency_rate_update.services.currency_getter_interface \
     import CurrencyGetterType
 
 _logger = logging.getLogger(__name__)
+
+_intervalTypes = {
+    'days': lambda interval: relativedelta(days=interval),
+    'weeks': lambda interval: relativedelta(days=7*interval),
+    'months': lambda interval: relativedelta(months=interval),
+}
 
 
 class CurrencyRateUpdateService(models.Model):
@@ -34,9 +41,9 @@ class CurrencyRateUpdateService(models.Model):
     def refresh_currency(self):
         """Refresh the currencies rates for all companies now!!"""
         # override method if Bank of Italy service is selected
-        if self.service == "IT_BOI":
-            rate_obj = self.env['res.currency.rate']
-            for srv in self:
+        for srv in self:
+            if srv.service == "IT_BOI":
+                rate_obj = self.env['res.currency.rate']
                 _logger.info(
                     'Start refreshing currencies with service %s (company: %s)',
                     srv.service, srv.company_id.name)
@@ -54,9 +61,9 @@ class CurrencyRateUpdateService(models.Model):
                     raise UserError(_(
                         "In company '%s', the rate of the main currency (%s)"
                         "must be 1.00 (current rate: %s).") % (
-                            company.name,
-                            main_currency.name,
-                            main_currency.rate))
+                        company.name,
+                        main_currency.name,
+                        main_currency.rate))
                 note = srv.note or ''
                 for day in range(5):
                     ref_date = datetime.today() - timedelta(days=day)
@@ -64,7 +71,8 @@ class CurrencyRateUpdateService(models.Model):
                         # We initalize the class that will handle the request
                         # and return a dict of rate
                         getter = CurrencyGetterType.get(srv.service)
-                        curr_to_fetch = [x.name for x in srv.currency_to_update]
+                        curr_to_fetch = [
+                            x.name for x in srv.currency_to_update]
                         res = {}
                         res, log_info, rate_name = getter.get_updated_currency(
                             curr_to_fetch,
@@ -114,14 +122,14 @@ class CurrencyRateUpdateService(models.Model):
                         )
                         _logger.error(repr(exc))
                         srv.write({'note': error_msg})
-                    if self._context.get('cron'):
-                        midnight = time(0, 0)
-                        next_run = (datetime.combine(
-                                    fields.Date.from_string(srv.next_run),
-                                    midnight) +
-                                    _intervalTypes[str(srv.interval_type)]
-                                    (srv.interval_number)).date()
-                        srv.next_run = next_run
-            return True
-        else:
-            super(CurrencyRateUpdateService, self).refresh_currency()
+                if self._context.get('cron'):
+                    midnight = time(0, 0)
+                    next_run = (datetime.combine(
+                                fields.Date.from_string(srv.next_run),
+                                midnight) +
+                                _intervalTypes[str(srv.interval_type)]
+                                (srv.interval_number)).date()
+                    srv.next_run = next_run
+            else:
+                super(CurrencyRateUpdateService, srv).refresh_currency()
+        return True
