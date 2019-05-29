@@ -354,6 +354,12 @@ class StockPickingPackagePreparation(models.Model):
         return res
 
     @api.multi
+    def add_services_to_invoice(self):
+        """ Override this method in order to execute additional operation on
+        the invoices created from DDT. """
+        pass
+
+    @api.multi
     def action_invoice_create(self):
         """
         Create the invoice associated to the DDT.
@@ -412,6 +418,8 @@ class StockPickingPackagePreparation(models.Model):
             if references.get(invoices.get(group_key)):
                 if ddt not in references[invoices[group_key]]:
                     references[invoice] = references[invoice] | ddt
+            # Allow additional operations from ddt
+            ddt.add_services_to_invoice()
 
         if not invoices:
             raise UserError(_('There is no invoicable line.'))
@@ -431,6 +439,7 @@ class StockPickingPackagePreparation(models.Model):
             # Use additional field helper function (for account extensions)
             for line in invoice.invoice_line_ids:
                 line._set_additional_fields(invoice)
+
             # Necessary to force computation of taxes. In account_invoice,
             # they are triggered
             # by onchanges, which are not triggered when doing a create.
