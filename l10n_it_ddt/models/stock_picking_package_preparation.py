@@ -354,7 +354,7 @@ class StockPickingPackagePreparation(models.Model):
         return res
 
     @api.multi
-    def add_services_to_invoice(self):
+    def other_operations_on_ddt(self):
         """ Override this method in order to execute additional operation on
         the invoices created from DDT. """
         pass
@@ -419,7 +419,7 @@ class StockPickingPackagePreparation(models.Model):
                 if ddt not in references[invoices[group_key]]:
                     references[invoice] = references[invoice] | ddt
             # Allow additional operations from ddt
-            ddt.add_services_to_invoice()
+            ddt.other_operations_on_ddt(invoice)
 
         if not invoices:
             raise UserError(_('There is no invoicable line.'))
